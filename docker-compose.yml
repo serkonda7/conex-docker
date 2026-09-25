@@ -1,0 +1,34 @@
+services:
+  conex:
+    image: ${CONEX_IMAGE:-conex}:${CONEX_TAG:-latest}
+    build:
+      context: .
+      target: conex
+      args:
+        CONEX_VERSION: ${CONEX_VERSION:-main}
+    env_file: env/conex.env
+    restart: unless-stopped
+    volumes:
+      - conex-data:/opt/conex/data
+    healthcheck:
+      test: ["CMD", "bun", "/opt/conex/healthcheck.ts"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  conex-web:
+    image: ${CONEX_IMAGE:-conex}-web:${CONEX_TAG:-latest}
+    build:
+      context: .
+      target: conex-web
+      args:
+        CONEX_VERSION: ${CONEX_VERSION:-main}
+    restart: unless-stopped
+    depends_on:
+      conex:
+        condition: service_healthy
+
+volumes:
+  conex-data:
+    driver: local

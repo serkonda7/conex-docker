@@ -1,0 +1,15 @@
+# Copy to docker-compose.override.yml (gitignored) and adjust.
+services:
+  conex-web:
+    ports:
+      - "8000:8080"
+
+  # Build from a local conex checkout instead of the git repository:
+  # conex:
+  #   build:
+  #     additional_contexts:
+  #       conex-src: ../conex
+  # conex-web:
+  #   build:
+  #     additional_contexts:
+  #       conex-src: ../conex
