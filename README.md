@@ -1,64 +1,67 @@
 # conex-docker
+Docker deployment for [conex](https://github.com/serkonda7/conex).
 
-Docker deployment for [conex](https://github.com/serkonda7/conex), laid out
-like [netbox-docker](https://github.com/netbox-community/netbox-docker).
+It builds the `dev-netbox` branch by default. Two images come from one
+`Dockerfile`, and compose adds a stock Postgres:
 
-Two images come from one `Dockerfile`:
+| Service     | Contents                                              | Port |
+| ----------- | ----------------------------------------------------- | ---- |
+| `conex`     | bun API server, state in the `/opt/conex/data` volume | 3000 |
+| `conex-web` | Caddy serving the UI over HTTPS, proxying `/api/*`    | 443  |
+| `postgres`  | `postgres:17-alpine`, the conex database              | 5432 |
 
-| Image       | Contents                                                  | Port |
-| ----------- | --------------------------------------------------------- | ---- |
-| `conex`     | bun API server, SQLite DB in the `/opt/conex/data` volume | 3000 |
-| `conex-web` | Caddy serving the UI and proxying `/api/*` to `conex`     | 8080 |
 
 ## Quickstart
+> Change the database password in `env/postgres.env` and `env/conex.env`
+> before the first start; Postgres only reads it when it creates its volume.
 
 ```sh
 git clone <this repo> conex-docker
 cd conex-docker
 cp docker-compose.override.yml.example docker-compose.override.yml
+sed "s/^appKey = .*/appKey = \"$(openssl rand -hex 48)\"/" config.toml.example > config.toml
 docker compose up -d --build
 ```
 
-Open <http://localhost:8000> and create the admin account in the first-run
-dialog.
+Open <https://localhost> and create the admin account in the first-run
+dialog. The browser warns about the certificate until you trust Caddy's local
+CA (see [HTTPS](#https)).
 
-To build a different conex branch, tag or commit:
-
-```sh
-CONEX_VERSION=dev-netbox docker compose up -d --build
-```
 
 ## Configuration
+- `config.toml`: the server config, mounted read-only into `conex`. Start from
+  `config.toml.example`. conex refuses to start without an `appKey` of at
+  least 32 characters.
+- `env/postgres.env`: database name, user and password.
+- `env/conex.env`: `CONEX_DATABASE_URL`, which must match `env/postgres.env`.
+- `env/conex-web.env`: `CONEX_HOST`, the hostname the UI is served at.
 
-The settings live in `env/conex.env`. On every start the entrypoint turns
-them into the server's `config.toml`:
-
-| Variable                     | Default     | Meaning                                              |
-| ---------------------------- | ----------- | ---------------------------------------------------- |
-| `CONEX_APP_KEY`              | generated   | JWT signing secret, min. 32 chars                    |
-| `CONEX_APP_KEY_FILE`         |             | Read the key from a file (Docker secret)             |
-| `CONEX_SECURE_COOKIES`       | `false`\*   | Set to `true` when serving over HTTPS                |
-| `CONEX_FRONTEND_URL`         |             | Public URL of the UI                                 |
-| `CONEX_LOGIN_MAX_ATTEMPTS`   | `10`        | Login rate limit: attempts per window                |
-| `CONEX_LOGIN_WINDOW_SECONDS` | `300`       | Login rate limit: window length                      |
-| `CONEX_JWT_KEY_VERSION`      | `1`         | Increase it to invalidate all sessions               |
-| `CONEX_CONFIG_PATH`          |             | Use a mounted `config.toml` instead of the variables |
-
-\* The server defaults to `true`, but `env/conex.env` sets it to `false`
-because the default setup serves plain HTTP.
-
-If no app key is set, one is generated on first start and saved in
-`data/.app_key` in the volume, so sessions survive restarts.
 
 ### HTTPS
+`conex-web` serves HTTPS on port 443 and redirects port 80 to it. The
+certificate depends on `CONEX_HOST`:
 
-Put a TLS-terminating reverse proxy in front of `conex-web`, then set
-`CONEX_SECURE_COOKIES=true` and `CONEX_FRONTEND_URL=https://...`.
+- **Public domain** (e.g. `conex.example.com`): Let's Encrypt, renewed
+  automatically. DNS must point at the host and ports 80 and 443 must be
+  reachable from the internet.
+- **`localhost`, an IP, or a `*.local`, `*.internal` or `*.home.arpa` name**:
+  Caddy's own local CA. To get rid of the browser warning, export its root
+  certificate and trust it on the client machines:
+
+  ```sh
+  docker compose cp conex-web:/data/caddy/pki/authorities/local/root.crt conex-root.crt
+  ```
+
+Certificates and the local CA live in the `conex-web-data` volume. Session
+cookies are `Secure`, so logging in only works over HTTPS.
+
+Behind another reverse proxy, forward to `conex-web` on port 443 and either
+trust the local CA there or skip upstream certificate verification.
 
 ## Building images
 
 ```sh
-./build.sh                       # conex:main, conex-web:main from git
+./build.sh                       # conex:dev-netbox, conex-web:dev-netbox from git
 ./build.sh v1.0.0 --push         # a tag, then push
 ./build.sh dev --src ../conex    # from a local checkout
 CONEX_IMAGE=ghcr.io/me/conex ./build.sh main
@@ -69,17 +72,28 @@ A local checkout also works with plain Docker:
 (see `docker-compose.override.yml.example` for compose).
 
 ## Backup and restore
+The database is in the `conex-postgres-data` volume, and the `conex-data`
+volume holds the TANSS integration response dumps. Keep `config.toml` too:
+losing its `appKey` logs out all sessions.
 
-All state is in the `conex-data` volume: `conex.db` and `.app_key`.
+```sh
+docker compose exec -T postgres pg_dump -U conex -Fc conex > conex-$(date +%F).dump
+```
+
+To restore into a fresh database:
 
 ```sh
 docker compose stop conex
-docker run --rm -v conex-docker_conex-data:/data -v "$PWD":/backup alpine \
-  tar czf /backup/conex-data.tar.gz -C /data .
+docker compose exec -T postgres pg_restore -U conex -d conex --clean --if-exists < conex-2026-10-01.dump
 docker compose start conex
 ```
 
-To restore, extract the archive into the volume the same way while `conex`
-is stopped. Database migrations run automatically on startup, so upgrading
-means rebuilding with a newer `CONEX_VERSION` and running
-`docker compose up -d`.
+To back up `conex-data`:
+
+```sh
+docker run --rm -v conex-docker_conex-data:/data -v "$PWD":/backup alpine \
+  tar czf /backup/conex-data.tar.gz -C /data .
+```
+
+Database migrations run automatically on startup, so upgrading means
+rebuilding with a newer `CONEX_VERSION` and running `docker compose up -d`.

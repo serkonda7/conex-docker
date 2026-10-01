@@ -1,0 +1,6 @@
+# conex server config. Copy to config.toml (gitignored) and fill in appKey.
+# All options: server/config.example.toml and server/src/config.ts in conex.
+
+[auth]
+# Secret for signing sessions, min. 32 chars: `openssl rand -hex 48`.
+appKey = ""

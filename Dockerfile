@@ -9,7 +9,7 @@ ARG CADDY_VERSION=2
 # ---------------------------------------------------------------------------
 FROM scratch AS conex-src
 ARG CONEX_REPO=https://github.com/serkonda7/conex.git
-ARG CONEX_VERSION=main
+ARG CONEX_VERSION=dev-netbox
 ADD ${CONEX_REPO}#${CONEX_VERSION} /
 
 # ---------------------------------------------------------------------------
@@ -17,7 +17,6 @@ ADD ${CONEX_REPO}#${CONEX_VERSION} /
 # ---------------------------------------------------------------------------
 FROM oven/bun:${BUN_VERSION} AS builder
 WORKDIR /src
-
 COPY --from=conex-src package.json bun.lock ./
 COPY --from=conex-src server/package.json server/
 COPY --from=conex-src client/package.json client/
@@ -34,10 +33,10 @@ RUN bun run --cwd server build \
 	&& bun run --cwd client build
 
 # ---------------------------------------------------------------------------
-# conex: API server (bun + SQLite). Listens on :3000.
+# conex: API server (bun, Postgres via CONEX_DATABASE_URL). Listens on :3000.
 # ---------------------------------------------------------------------------
 FROM oven/bun:${BUN_VERSION}-slim AS conex
-ARG CONEX_VERSION=main
+ARG CONEX_VERSION=dev-netbox
 
 LABEL org.opencontainers.image.title="conex" \
 	org.opencontainers.image.description="conex API server" \
@@ -48,13 +47,13 @@ LABEL org.opencontainers.image.title="conex" \
 WORKDIR /opt/conex
 COPY --from=builder /src/server/dist/ ./dist/
 COPY --from=builder /src/server/drizzle/ ./drizzle/
-COPY docker/entrypoint.sh /usr/local/bin/conex-entrypoint
 COPY docker/healthcheck.ts /opt/conex/healthcheck.ts
 
 RUN mkdir -p /opt/conex/data \
-	&& chown bun:bun /opt/conex/data \
-	&& chmod 0755 /usr/local/bin/conex-entrypoint
+	&& chown bun:bun /opt/conex/data
 
+# Mount the server config here (see config.toml.example).
+ENV CONEX_CONFIG_PATH=/etc/conex/config.toml
 ENV CONEX_SERVER_PORT=3000
 USER bun
 VOLUME ["/opt/conex/data"]
@@ -63,14 +62,14 @@ EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
 	CMD ["bun", "/opt/conex/healthcheck.ts"]
 
-ENTRYPOINT ["conex-entrypoint"]
 CMD ["bun", "dist/index.js"]
 
 # ---------------------------------------------------------------------------
-# conex-web: Caddy serving the SPA and proxying /api to the API. Listens on :8080.
+# conex-web: Caddy serving the SPA over HTTPS and proxying /api to the API.
+# Listens on :80 (redirect) and :443. Certificates are kept in the /data volume.
 # ---------------------------------------------------------------------------
 FROM caddy:${CADDY_VERSION}-alpine AS conex-web
-ARG CONEX_VERSION=main
+ARG CONEX_VERSION=dev-netbox
 
 LABEL org.opencontainers.image.title="conex-web" \
 	org.opencontainers.image.description="conex web UI (Caddy)" \
@@ -82,4 +81,5 @@ COPY docker/Caddyfile /etc/caddy/Caddyfile
 COPY --from=builder /src/client/dist/ /srv/
 
 ENV CONEX_API_UPSTREAM=conex:3000
-EXPOSE 8080
+ENV CONEX_HOST=localhost
+EXPOSE 80 443 443/udp

@@ -2,14 +2,14 @@
 # Builds the conex and conex-web images.
 #
 # Usage: ./build.sh [ref] [--src <path>] [--push]
-#   ref           conex branch, tag or commit to build (default: main)
+#   ref           conex branch, tag or commit to build (default: dev-netbox)
 #   --src <path>  build from a local conex checkout instead of git
 #   --push        push the images after building
 #
 # Env: CONEX_IMAGE (default: conex), CONEX_TAG (default: ref with '/' -> '-')
 set -eu
 
-ref=main
+ref=dev-netbox
 src=
 push=
 
