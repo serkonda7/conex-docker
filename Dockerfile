@@ -9,7 +9,7 @@ ARG CADDY_VERSION=2
 # ---------------------------------------------------------------------------
 FROM scratch AS conex-src
 ARG CONEX_REPO=https://github.com/serkonda7/conex.git
-ARG CONEX_VERSION=dev-netbox
+ARG CONEX_VERSION=main
 ADD ${CONEX_REPO}#${CONEX_VERSION} /
 
 # ---------------------------------------------------------------------------
@@ -21,6 +21,7 @@ COPY --from=conex-src package.json bun.lock ./
 COPY --from=conex-src server/package.json server/
 COPY --from=conex-src client/package.json client/
 COPY --from=conex-src shared/package.json shared/
+COPY --from=conex-src plugins/agfeo-ldap/package.json plugins/agfeo-ldap/
 RUN --mount=type=cache,target=/root/.bun/install/cache \
 	bun install --frozen-lockfile
 
@@ -30,13 +31,14 @@ COPY --from=conex-src \
 	--exclude=**/.turbo --exclude=test-results --exclude=.git \
 	. .
 RUN bun run --cwd server build \
-	&& bun run --cwd client build
+	&& bun run --cwd client build \
+	&& bun run --cwd plugins/agfeo-ldap build
 
 # ---------------------------------------------------------------------------
 # conex: API server (bun, Postgres via CONEX_DATABASE_URL). Listens on :3000.
 # ---------------------------------------------------------------------------
 FROM oven/bun:${BUN_VERSION}-slim AS conex
-ARG CONEX_VERSION=dev-netbox
+ARG CONEX_VERSION=main
 
 LABEL org.opencontainers.image.title="conex" \
 	org.opencontainers.image.description="conex API server" \
@@ -69,7 +71,7 @@ CMD ["bun", "dist/index.js"]
 # Listens on :80 (redirect) and :443. Certificates are kept in the /data volume.
 # ---------------------------------------------------------------------------
 FROM caddy:${CADDY_VERSION}-alpine AS conex-web
-ARG CONEX_VERSION=dev-netbox
+ARG CONEX_VERSION=main
 
 LABEL org.opencontainers.image.title="conex-web" \
 	org.opencontainers.image.description="conex web UI (Caddy)" \
@@ -83,3 +85,26 @@ COPY --from=builder /src/client/dist/ /srv/
 ENV CONEX_API_UPSTREAM=conex:3000
 ENV CONEX_HOST=localhost
 EXPOSE 80 443 443/udp
+
+# ---------------------------------------------------------------------------
+# agfeo-ldap: optional LDAP contact directory for the AGFEO Dashboard. Listens
+# on :1389, as the bun user cannot bind ports below 1024.
+# ---------------------------------------------------------------------------
+FROM oven/bun:${BUN_VERSION}-slim AS agfeo-ldap
+ARG CONEX_VERSION=main
+
+LABEL org.opencontainers.image.title="conex-agfeo-ldap" \
+	org.opencontainers.image.description="conex contact directory over LDAP for the AGFEO Dashboard" \
+	org.opencontainers.image.source="https://github.com/serkonda7/conex" \
+	org.opencontainers.image.licenses="MPL-2.0" \
+	org.opencontainers.image.version="${CONEX_VERSION}"
+
+WORKDIR /opt/agfeo-ldap
+COPY --from=builder /src/plugins/agfeo-ldap/dist/ ./dist/
+
+ENV AGFEO_LDAP_CONEX_URL=http://conex:3000
+ENV AGFEO_LDAP_PORT=1389
+USER bun
+EXPOSE 1389
+
+CMD ["bun", "dist/index.js"]

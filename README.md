@@ -1,7 +1,7 @@
 # conex-docker
 Docker deployment for [conex](https://github.com/serkonda7/conex).
 
-It builds the `dev-netbox` branch by default. Two images come from one
+It builds the `main` branch by default. Two images come from one
 `Dockerfile`, and compose adds a stock Postgres:
 
 | Service     | Contents                                              | Port |
@@ -9,6 +9,9 @@ It builds the `dev-netbox` branch by default. Two images come from one
 | `conex`     | bun API server, state in the `/opt/conex/data` volume | 3000 |
 | `conex-web` | Caddy serving the UI over HTTPS, proxying `/api/*`    | 443  |
 | `postgres`  | `postgres:17-alpine`, the conex database              | 5432 |
+
+The optional `agfeo-ldap` service serves the conex contacts over LDAP for the
+AGFEO Dashboard (see [AGFEO Dashboard](#agfeo-dashboard-optional)).
 
 
 ## Quickstart
@@ -35,6 +38,7 @@ CA (see [HTTPS](#https)).
 - `env/postgres.env`: database name, user and password.
 - `env/conex.env`: `CONEX_DATABASE_URL`, which must match `env/postgres.env`.
 - `env/conex-web.env`: `CONEX_HOST`, the hostname the UI is served at.
+- `env/agfeo-ldap.env`: settings of the optional LDAP service.
 
 
 ### HTTPS
@@ -58,12 +62,34 @@ cookies are `Secure`, so logging in only works over HTTPS.
 Behind another reverse proxy, forward to `conex-web` on port 443 and either
 trust the local CA there or skip upstream certificate verification.
 
+### AGFEO Dashboard (optional)
+The `agfeo-ldap` service is in the `agfeo-ldap` compose profile, so it only
+runs when that profile is enabled:
+
+```sh
+docker compose --profile agfeo-ldap up -d --build
+```
+
+To enable it permanently, put `COMPOSE_PROFILES=agfeo-ldap` in a `.env` file
+next to `docker-compose.yml`.
+
+The service reaches conex at `http://conex:3000` and listens on port 1389 in
+the container; `docker-compose.override.yml.example` publishes it as port 389.
+Set the search base in `env/agfeo-ldap.env`. Without TLS, passwords cross the
+network in plain text. For LDAPS, mount a certificate and key (see the
+override example), set `AGFEO_LDAP_TLS_CERT` and `AGFEO_LDAP_TLS_KEY`, and
+publish `636:1389`.
+
+The conex user and the Dashboard account are set up as described in
+`docs/integrations/agfeo.md` in conex.
+
 ## Building images
 
 ```sh
-./build.sh                       # conex:dev-netbox, conex-web:dev-netbox from git
+./build.sh                       # conex:main, conex-web:main from git
 ./build.sh v1.0.0 --push         # a tag, then push
 ./build.sh dev --src ../conex    # from a local checkout
+./build.sh --agfeo-ldap          # also conex-agfeo-ldap:main
 CONEX_IMAGE=ghcr.io/me/conex ./build.sh main
 ```
 

@@ -6,12 +6,25 @@ services:
       - "443:443"
       - "443:443/udp" # HTTP/3
 
+  # Only started with the agfeo-ldap profile.
+  agfeo-ldap:
+    ports:
+      - "389:1389" # or "636:1389" for LDAPS
+    # LDAPS: mount certificate and key, and set AGFEO_LDAP_TLS_CERT/_KEY in
+    # env/agfeo-ldap.env.
+    # volumes:
+    #   - ./certs:/etc/agfeo-ldap:ro
+
   # Build from a local conex checkout instead of the git repository:
   # conex:
   #   build:
   #     additional_contexts:
   #       conex-src: ../conex
   # conex-web:
+  #   build:
+  #     additional_contexts:
+  #       conex-src: ../conex
+  # agfeo-ldap:
   #   build:
   #     additional_contexts:
   #       conex-src: ../conex
