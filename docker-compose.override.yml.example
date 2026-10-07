@@ -11,7 +11,7 @@ services:
     ports:
       - "389:1389" # or "636:1389" for LDAPS
     # LDAPS: mount certificate and key, and set AGFEO_LDAP_TLS_CERT/_KEY in
-    # env/agfeo-ldap.env.
+    # .env.
     # volumes:
     #   - ./certs:/etc/agfeo-ldap:ro
 

@@ -15,13 +15,11 @@ AGFEO Dashboard (see [AGFEO Dashboard](#agfeo-dashboard-optional)).
 
 
 ## Quickstart
-> Change the database password in `env/postgres.env` and `env/conex.env`
-> before the first start; Postgres only reads it when it creates its volume.
-
 ```sh
 git clone <this repo> conex-docker
 cd conex-docker
 cp docker-compose.override.yml.example docker-compose.override.yml
+sed "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" .env.example > .env
 sed "s/^appKey = .*/appKey = \"$(openssl rand -hex 48)\"/" config.toml.example > config.toml
 docker compose up -d --build
 ```
@@ -35,10 +33,12 @@ CA (see [HTTPS](#https)).
 - `config.toml`: the server config, mounted read-only into `conex`. Start from
   `config.toml.example`. conex refuses to start without an `appKey` of at
   least 32 characters.
-- `env/postgres.env`: database name, user and password.
-- `env/conex.env`: `CONEX_DATABASE_URL`, which must match `env/postgres.env`.
-- `env/conex-web.env`: `CONEX_HOST`, the hostname the UI is served at.
-- `env/agfeo-ldap.env`: settings of the optional LDAP service.
+- `.env`: deployment settings, read by docker compose. Start from
+  `.env.example`:
+  - `POSTGRES_PASSWORD`: the database password. Postgres only applies it when
+    it creates its volume, so changing it later needs `ALTER USER` as well.
+  - `CONEX_HOST`: the hostname the UI is served at.
+  - image settings and the optional LDAP service, see below.
 
 
 ### HTTPS
@@ -70,12 +70,11 @@ runs when that profile is enabled:
 docker compose --profile agfeo-ldap up -d --build
 ```
 
-To enable it permanently, put `COMPOSE_PROFILES=agfeo-ldap` in a `.env` file
-next to `docker-compose.yml`.
+To enable it permanently, set `COMPOSE_PROFILES=agfeo-ldap` in `.env`.
 
 The service reaches conex at `http://conex:3000` and listens on port 1389 in
 the container; `docker-compose.override.yml.example` publishes it as port 389.
-Set the search base in `env/agfeo-ldap.env`. Without TLS, passwords cross the
+Set the search base with `AGFEO_LDAP_BASE_DN` in `.env`. Without TLS, passwords cross the
 network in plain text. For LDAPS, mount a certificate and key (see the
 override example), set `AGFEO_LDAP_TLS_CERT` and `AGFEO_LDAP_TLS_KEY`, and
 publish `636:1389`.

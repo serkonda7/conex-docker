@@ -6,7 +6,8 @@ services:
       target: conex
       args:
         CONEX_VERSION: ${CONEX_VERSION:-main}
-    env_file: env/conex.env
+    environment:
+      CONEX_DATABASE_URL: postgres://conex:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/conex
     restart: unless-stopped
     depends_on:
       postgres:
@@ -27,7 +28,8 @@ services:
       target: conex-web
       args:
         CONEX_VERSION: ${CONEX_VERSION:-main}
-    env_file: env/conex-web.env
+    environment:
+      CONEX_HOST: ${CONEX_HOST:-localhost}
     restart: unless-stopped
     depends_on:
       conex:
@@ -44,7 +46,11 @@ services:
       args:
         CONEX_VERSION: ${CONEX_VERSION:-main}
     profiles: [agfeo-ldap]
-    env_file: env/agfeo-ldap.env
+    environment:
+      AGFEO_LDAP_BASE_DN: ${AGFEO_LDAP_BASE_DN:-ou=contacts,dc=conex}
+      AGFEO_LDAP_TLS_CERT: ${AGFEO_LDAP_TLS_CERT:-}
+      AGFEO_LDAP_TLS_KEY: ${AGFEO_LDAP_TLS_KEY:-}
+      AGFEO_LDAP_DEBUG: ${AGFEO_LDAP_DEBUG:-}
     restart: unless-stopped
     depends_on:
       conex:
@@ -52,7 +58,10 @@ services:
 
   postgres:
     image: docker.io/postgres:17-alpine
-    env_file: env/postgres.env
+    environment:
+      POSTGRES_USER: conex
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: conex
     restart: unless-stopped
     volumes:
       - conex-postgres-data:/var/lib/postgresql/data
