@@ -27,6 +27,42 @@ Open <https://localhost> and create the admin account. For the certificate
 warning, see [HTTPS](#https).
 
 
+## Backup and restore
+```sh
+docker compose exec -T postgres pg_dump -U conex -Fc conex > conex-$(date +%F).dump
+```
+
+### Restore
+```sh
+docker compose stop conex
+docker compose exec -T postgres pg_restore -U conex -d conex --clean --if-exists < conex-2026-10-01.dump
+docker compose start conex
+```
+
+### Backing up integration data dumps
+```sh
+docker run --rm -v conex-docker_conex-data:/data -v "$PWD":/backup alpine \
+  tar czf /backup/conex-data.tar.gz -C /data .
+```
+
+
+## Updating
+Back up the database first (see above), then rebuild and restart:
+
+```sh
+git pull
+
+# optional: pin a tag
+sed -i 's/^#\?CONEX_VERSION=.*/CONEX_VERSION=1.1.0/' .env
+
+docker compose up -d --build
+docker image prune -f # optional: drop old images
+```
+
+To roll back, set the old version and restore the backup, as migrations are
+not reverted.
+
+
 ## Configuration
 - `.env`: compose settings, from `.env.example`.
   - `POSTGRES_PASSWORD` only takes effect when the database volume is created.
@@ -74,43 +110,3 @@ docker compose up -d
 ```
 
 conex user and Dashboard setup, see [conex docs](https://github.com/serkonda7/conex/blob/main/docs/integrations/agfeo.md).
-
-
-## Backup and restore
-The database is in the `conex-postgres-data` volume, and integration response dumps in the `conex-data` volume.
-
-```sh
-docker compose exec -T postgres pg_dump -U conex -Fc conex > conex-$(date +%F).dump
-```
-
-To restore into a fresh database:
-
-```sh
-docker compose stop conex
-docker compose exec -T postgres pg_restore -U conex -d conex --clean --if-exists < conex-2026-10-01.dump
-docker compose start conex
-```
-
-To back up `conex-data`:
-
-```sh
-docker run --rm -v conex-docker_conex-data:/data -v "$PWD":/backup alpine \
-  tar czf /backup/conex-data.tar.gz -C /data .
-```
-
-
-## Updating
-Back up the database first (see above), then rebuild and restart:
-
-```sh
-git pull
-
-# optional: pin a tag
-sed -i 's/^#\?CONEX_VERSION=.*/CONEX_VERSION=1.1.0/' .env
-
-docker compose up -d --build
-docker image prune -f # optional: drop old images
-```
-
-To roll back, set the old version and restore the backup, as migrations are
-not reverted.
