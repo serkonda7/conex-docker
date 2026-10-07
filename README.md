@@ -15,7 +15,7 @@ Optional: `agfeo-ldap`, see [AGFEO Dashboard](#agfeo-dashboard-optional).
 
 ## Quickstart
 ```sh
-git clone <this repo> conex-docker
+git clone https://github.com/serkonda7/conex-docker conex-docker
 cd conex-docker
 cp docker-compose.override.yml.example docker-compose.override.yml
 sed "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" .env.example > .env
@@ -77,9 +77,7 @@ conex user and Dashboard setup, see [conex docs](https://github.com/serkonda7/co
 
 
 ## Backup and restore
-The database is in the `conex-postgres-data` volume, and the `conex-data`
-volume holds the TANSS integration response dumps. Keep `config.toml` too:
-losing its `appKey` logs out all sessions.
+The database is in the `conex-postgres-data` volume, and integration response dumps in the `conex-data` volume.
 
 ```sh
 docker compose exec -T postgres pg_dump -U conex -Fc conex > conex-$(date +%F).dump
@@ -100,19 +98,19 @@ docker run --rm -v conex-docker_conex-data:/data -v "$PWD":/backup alpine \
   tar czf /backup/conex-data.tar.gz -C /data .
 ```
 
-Database migrations run automatically on startup, so upgrading means
-rebuilding with a newer `CONEX_VERSION` and running `docker compose up -d`.
 
+## Updating
+Back up the database first (see above), then rebuild and restart:
 
-## Building images
 ```sh
-./build.sh                       # conex:main, conex-web:main from git
-./build.sh v1.0.0 --push         # a tag, then push
-./build.sh dev --src ../conex    # from a local checkout
-./build.sh --agfeo-ldap          # also conex-agfeo-ldap:main
-CONEX_IMAGE=ghcr.io/me/conex ./build.sh main
+git pull
+
+# optional: pin a tag
+sed -i 's/^#\?CONEX_VERSION=.*/CONEX_VERSION=1.1.0/' .env
+
+docker compose up -d --build
+docker image prune -f # optional: drop old images
 ```
 
-A local checkout also works with plain Docker:
-`docker buildx build --build-context conex-src=../conex --target conex .`
-(see `docker-compose.override.yml.example` for compose).
+To roll back, set the old version and restore the backup, as migrations are
+not reverted.
