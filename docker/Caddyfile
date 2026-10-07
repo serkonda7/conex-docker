@@ -2,10 +2,18 @@
 	admin off
 }
 
+# CONEX_TLS=auto: Caddy's default, see below. internal: always the local CA.
+(tls-auto) {
+}
+(tls-internal) {
+	tls internal
+}
+
 # HTTPS for CONEX_HOST; plain HTTP on :80 redirects here. Certificates come
 # from Let's Encrypt for public domains, and from Caddy's local CA for
 # localhost, IPs and *.local / *.internal / *.home.arpa names.
 {$CONEX_HOST:localhost} {
+	import tls-{$CONEX_TLS:auto}
 	encode zstd gzip
 
 	# API: strip the /api prefix, like the vite dev proxy does.

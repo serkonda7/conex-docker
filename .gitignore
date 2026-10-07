@@ -2,3 +2,4 @@ docker-compose.override.yml
 config.toml
 *.env.local
 .env
+certs/

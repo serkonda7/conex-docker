@@ -30,6 +30,7 @@ services:
         CONEX_VERSION: ${CONEX_VERSION:-main}
     environment:
       CONEX_HOST: ${CONEX_HOST:-localhost}
+      CONEX_TLS: ${CONEX_TLS:-auto}
     restart: unless-stopped
     depends_on:
       conex:
