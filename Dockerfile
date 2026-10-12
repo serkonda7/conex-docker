@@ -10,7 +10,16 @@ ARG CADDY_VERSION=2
 FROM scratch AS conex-src
 ARG CONEX_REPO=https://github.com/serkonda7/conex.git
 ARG CONEX_VERSION=main
-ADD ${CONEX_REPO}#${CONEX_VERSION} /
+ADD --keep-git-dir=true ${CONEX_REPO}#${CONEX_VERSION} /
+
+# ---------------------------------------------------------------------------
+# Commit: short hash shown in the UI footer, empty for tagged releases.
+# ---------------------------------------------------------------------------
+FROM alpine:3 AS conex-commit
+RUN apk add --no-cache git
+COPY --from=conex-src .git /src/.git
+RUN cd /src && { git describe --exact-match --tags HEAD >/dev/null 2>&1 \
+	|| git rev-parse --short HEAD 2>/dev/null; } > /commit || true
 
 # ---------------------------------------------------------------------------
 # Builder: install workspace deps and build server bundle + client assets.
@@ -30,8 +39,9 @@ COPY --from=conex-src \
 	--exclude=**/node_modules --exclude=**/dist --exclude=**/data \
 	--exclude=**/.turbo --exclude=test-results --exclude=.git \
 	. .
+COPY --from=conex-commit /commit /tmp/commit
 RUN bun run --cwd server build \
-	&& bun run --cwd client build \
+	&& CONEX_COMMIT="$(cat /tmp/commit)" bun run --cwd client build \
 	&& bun run --cwd plugins/agfeo-ldap build
 
 # ---------------------------------------------------------------------------
