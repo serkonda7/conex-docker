@@ -13,12 +13,14 @@ ARG CONEX_VERSION=main
 ADD --keep-git-dir=true ${CONEX_REPO}#${CONEX_VERSION} /
 
 # ---------------------------------------------------------------------------
-# Commit: short hash shown in the UI footer, empty for tagged releases.
+# Commit: short hash shown in the UI footer, empty for release tags (1.2.3).
+# BuildKit also stores a fetched branch as a tag, hence the --match.
 # ---------------------------------------------------------------------------
 FROM alpine:3 AS conex-commit
 RUN apk add --no-cache git
 COPY --from=conex-src .git /src/.git
-RUN cd /src && { git describe --exact-match --tags HEAD >/dev/null 2>&1 \
+RUN cd /src && { git describe --exact-match --tags \
+	--match '[0-9]*.[0-9]*.[0-9]*' HEAD >/dev/null 2>&1 \
 	|| git rev-parse --short HEAD 2>/dev/null; } > /commit || true
 
 # ---------------------------------------------------------------------------
