@@ -1,8 +1,8 @@
 # conex-docker
 Docker deployment for [conex](https://github.com/serkonda7/conex).
 
-It builds the `main` branch by default. Two images come from one
-`Dockerfile`, and compose adds a stock Postgres:
+Two images built by the `Dockerfile`, and a stock Postgres.
+Defaults to the conex `main` branch, see [Version](#version).
 
 | Service     | Contents                                              | Port |
 | ----------- | ----------------------------------------------------- | ---- |
@@ -27,40 +27,44 @@ Open <https://localhost> and create the admin account. For the certificate
 warning, see [HTTPS](#https).
 
 
-## Backup and restore
-```sh
-docker compose exec -T postgres pg_dump -U conex -Fc conex > conex-$(date +%F).dump
-```
-
-### Restore
-```sh
-docker compose stop conex
-docker compose exec -T postgres pg_restore -U conex -d conex --clean --if-exists < conex-2026-10-01.dump
-docker compose start conex
-```
-
-### Backing up integration data dumps
-```sh
-docker run --rm -v conex-docker_conex-data:/data -v "$PWD":/backup alpine \
-  tar czf /backup/conex-data.tar.gz -C /data .
-```
-
-
 ## Updating
-Back up the database first (see above), then rebuild and restart:
-
 ```sh
+# Backup data
+docker compose exec -T postgres pg_dump -U conex -Fc conex > backups/conex-$(date +%F).dump
+docker compose exec -T conex tar czf - -C /opt/conex/data . > backups/conex-data-$(date +%F).tar.gz
+
+# Optional: pin a release, see Version
+CONEX_VERSION=stable
+sed -i "s/^#\?CONEX_VERSION=.*/CONEX_VERSION=$CONEX_VERSION/" .env
+
+# Rebuild and restart
 git pull
-
-# optional: pin a tag
-sed -i 's/^#\?CONEX_VERSION=.*/CONEX_VERSION=1.1.0/' .env
-
 docker compose up -d --build
-docker image prune -f # optional: drop old images
+
+# Optional: drop old images
+docker image prune -f
 ```
 
-To roll back, set the old version and restore the backup, as migrations are
-not reverted.
+
+### Rollback
+```sh
+# Set previous release
+CONEX_VERSION=1.1.0
+BACKUP_DATE=2026-10-01
+
+# Rebuild
+docker compose stop conex
+sed -i "s/^#\?CONEX_VERSION=.*/CONEX_VERSION=$CONEX_VERSION/" .env
+docker compose build
+
+# Restore
+docker compose exec -T postgres pg_restore -U conex -d conex --clean --if-exists < backups/conex-$BACKUP_DATE.dump
+docker compose run --rm --no-deps -v "$PWD/backups:/backup:ro" --entrypoint sh conex \
+  -c "find /opt/conex/data -mindepth 1 -delete && tar xzf /backup/conex-data-$BACKUP_DATE.tar.gz -C /opt/conex/data"
+
+# Restart
+docker compose up -d
+```
 
 
 ## Configuration
@@ -68,6 +72,16 @@ not reverted.
   - `POSTGRES_PASSWORD` only takes effect when the database volume is created.
 - `config.toml`: server config, from `config.toml.example`. Needs an `appKey`
   of 32+ characters.
+
+
+### Version
+`CONEX_VERSION` in `.env` selects the conex source and is also the image tag:
+
+- `main` (default): the `main` branch
+- `stable`: the latest release tag
+- a release tag, e.g. `1.1.0`
+
+`docker compose up -d --build` fetches the latest commit or release.
 
 
 ### HTTPS

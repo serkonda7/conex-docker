@@ -4,17 +4,30 @@ ARG BUN_VERSION=1.4.2
 ARG CADDY_VERSION=2
 
 # ---------------------------------------------------------------------------
-# Source: the conex repository at CONEX_VERSION (branch, tag or commit).
+# Source: the conex repository at CONEX_VERSION: `main` (branch), `stable`
+# (latest release tag) or a tag (1.2.3).
 # Override with a local checkout via `--build-context conex-src=../conex`.
 # ---------------------------------------------------------------------------
-FROM scratch AS conex-src
+FROM alpine:3 AS conex-fetch
+RUN apk add --no-cache git
 ARG CONEX_REPO=https://github.com/serkonda7/conex.git
 ARG CONEX_VERSION=main
-ADD --keep-git-dir=true ${CONEX_REPO}#${CONEX_VERSION} /
+# Ref list of the repository, invalidates the clone below when it changes.
+ADD ${CONEX_REPO}/info/refs?service=git-upload-pack /tmp/refs
+RUN ref="$CONEX_VERSION" \
+	&& if [ "$ref" = stable ]; then \
+		ref="$(git ls-remote --tags --refs --sort=-v:refname "$CONEX_REPO" \
+			'[0-9]*.[0-9]*.[0-9]*' | sed 's|.*refs/tags/||' | grep -v -- - | head -n 1)" \
+		&& [ -n "$ref" ] || { echo "no release tag in $CONEX_REPO" >&2; exit 1; }; \
+	fi \
+	&& echo "CONEX_VERSION=$CONEX_VERSION: $ref" \
+	&& git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$ref" "$CONEX_REPO" /src
+
+FROM scratch AS conex-src
+COPY --from=conex-fetch /src /
 
 # ---------------------------------------------------------------------------
 # Commit: short hash shown in the UI footer, empty for release tags (1.2.3).
-# BuildKit also stores a fetched branch as a tag, hence the --match.
 # ---------------------------------------------------------------------------
 FROM alpine:3 AS conex-commit
 RUN apk add --no-cache git

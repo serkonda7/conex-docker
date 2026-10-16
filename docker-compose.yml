@@ -1,6 +1,6 @@
 services:
   conex:
-    image: ${CONEX_IMAGE:-conex}:${CONEX_TAG:-latest}
+    image: ${CONEX_IMAGE:-conex}:${CONEX_VERSION:-main}
     build:
       context: .
       target: conex
@@ -22,7 +22,7 @@ services:
           create_host_path: false
 
   conex-web:
-    image: ${CONEX_IMAGE:-conex}-web:${CONEX_TAG:-latest}
+    image: ${CONEX_IMAGE:-conex}-web:${CONEX_VERSION:-main}
     build:
       context: .
       target: conex-web
@@ -40,7 +40,7 @@ services:
 
   # Optional, enable with the agfeo-ldap profile (see README).
   agfeo-ldap:
-    image: ${CONEX_IMAGE:-conex}-agfeo-ldap:${CONEX_TAG:-latest}
+    image: ${CONEX_IMAGE:-conex}-agfeo-ldap:${CONEX_VERSION:-main}
     build:
       context: .
       target: agfeo-ldap

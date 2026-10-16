@@ -3,3 +3,5 @@ config.toml
 *.env.local
 .env
 certs/
+*.dump
+*.tar.gz
