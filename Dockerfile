@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG BUN_VERSION=1.4.2
+ARG BUN_VERSION=1.4.3
 ARG CADDY_VERSION=2
 
 # ---------------------------------------------------------------------------
