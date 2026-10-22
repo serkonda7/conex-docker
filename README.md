@@ -29,13 +29,13 @@ warning, see [HTTPS](#https).
 
 ## Updating
 ```sh
-# Backup data
-docker compose exec -T postgres pg_dump -U conex -Fc conex > backups/conex-$(date +%F).dump
-docker compose exec -T conex tar czf - -C /opt/conex/data . > backups/conex-data-$(date +%F).tar.gz
-
 # Optional: pin a release, see Version
 CONEX_VERSION=stable
 sed -i "s/^#\?CONEX_VERSION=.*/CONEX_VERSION=$CONEX_VERSION/" .env
+
+# Backup data
+docker compose exec -T postgres pg_dump -U conex -Fc conex > backups/conex-$(date +%F).dump
+docker compose exec -T conex tar czf - -C /opt/conex/data . > backups/conex-data-$(date +%F).tar.gz
 
 # Rebuild and restart
 git pull
