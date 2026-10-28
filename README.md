@@ -77,11 +77,13 @@ docker compose up -d
 ### Version
 `CONEX_VERSION` in `.env` selects the conex source and is also the image tag:
 
-- `main` (default): the `main` branch
-- `stable`: the latest release tag
+- `stable`: latest release tag
+- `main`: the `main` branch
+- any other branch, e.g. `feat-foobar`
 - a release tag, e.g. `1.1.0`
 
-`docker compose up -d --build` fetches the latest commit or release.
+`docker compose up -d --build` fetches the given version.
+The value must be a valid docker tag.
 
 
 ### HTTPS
